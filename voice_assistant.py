@@ -18,6 +18,7 @@ import json
 import os
 import queue
 import select
+import signal
 import socket
 import statistics
 import struct
@@ -1623,6 +1624,10 @@ def conversation_loop(conf, ssl_ctx, once=False):
 
 
 def main():
+    def _on_term(signum, frame):
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM, _on_term)
+    signal.signal(signal.SIGINT, _on_term)
     parser = argparse.ArgumentParser(description="100ask i.MX6ULL 云 AI 语音对话最小原型")
     parser.add_argument("--config", default=os.path.join(BASE_DIR, "config.ini"), help="配置文件路径")
     parser.add_argument("--once", action="store_true", help="只对话一轮就退出")

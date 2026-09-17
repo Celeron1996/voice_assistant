@@ -1,0 +1,37 @@
+#!/bin/sh
+#
+# 语音助手开机自启脚本（Buildroot init.d 风格）
+# 安装：scp scripts/S99voiceassistant root@<board>:/etc/init.d/ && chmod +x /etc/init.d/S99voiceassistant
+# 启动：/etc/init.d/S99voiceassistant start   日志：/tmp/voice_assistant.log
+#
+PIDFILE=/var/run/voiceassistant.pid
+LOGFILE=/tmp/voice_assistant.log
+APPDIR=/root/voice_assistant
+
+start() {
+    if [ -f "$PIDFILE" ] && kill -0 "$(cat $PIDFILE)" 2>/dev/null; then
+        echo "voice assistant already running (pid $(cat $PIDFILE))"
+        return 0
+    fi
+    printf "Starting voice assistant: "
+    cd "$APPDIR" || exit 1
+    nohup python3 voice_assistant.py >"$LOGFILE" 2>&1 &
+    echo $! > "$PIDFILE"
+    echo "OK"
+}
+
+stop() {
+    printf "Stopping voice assistant: "
+    if [ -f "$PIDFILE" ]; then
+        kill "$(cat $PIDFILE)" 2>/dev/null
+        rm -f "$PIDFILE"
+    fi
+    echo "OK"
+}
+
+case "$1" in
+    start) start ;;
+    stop) stop ;;
+    restart) stop; sleep 2; start ;;
+    *) echo "Usage: $0 {start|stop|restart}"; exit 1 ;;
+esac
