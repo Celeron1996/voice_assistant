@@ -325,7 +325,7 @@ ssh $BOARD 'chmod +x /etc/init.d/S99voiceassistant && /etc/init.d/S99voiceassist
 | `resource_id` | `volc.speech.dialog` | 固定 |
 | `app_key` | `PlgvMymc7f3tQnJ6` | 旧版鉴权固定值，仅旧版凭证用 |
 | `model` | `2.2.0.0` | SC2.0；O 版音色请用 `1.2.6.1` |
-| `speaker` | `saturn_zh_female_wenrouwenya_tob` | 音色，须与 model 代次匹配（见 3.2） |
+| `speaker` | `saturn_zh_female_wenrouwenya_tob` | 音色。实测实时模型可用：`saturn_zh_female_wenrouwenya_tob`（温柔文雅）、`saturn_zh_female_keainvsheng_tob`（可爱女生）等 `saturn_*` 系列；`mars/moon/uranus` 等合成音色会报 `InvalidSpeaker`（见第 7 章） |
 | `bot_name` | `小助手` | 人设：名字 |
 | `system_prompt` | 板端助手人设 | 人设：角色设定 |
 | `speaking_style` | 自然简洁友好 | 人设：说话风格 |
@@ -521,6 +521,7 @@ StartSession 的 JSON（`RealtimeDialogue._session_payload`）：
 | 声音极小/无声 | PulseAudio 重启后 WM8960 硬件音量被重置为 0 | 代码已每次播放前 `alsactl restore`；手动执行同命令 |
 | 启动日志 `PulseAudio sink 未能唤醒` | 先启动了 arecord，播放流打不开 | 已按「先保活流后录音」修复；手动调试同样顺序 |
 | 播放卡住、写入超时 | Pulse sink 卡在 SUSPENDED | 程序自动降级缓冲播放；可 `pactl suspend-sink @DEFAULT_SINK@ 0` 或重启 pulseaudio |
+| 实时模式有识别但无回复/无声音，日志报 `ClientError:InvalidSpeaker` | 音色不在实时模型支持列表（如 `mars` 系列；且开场白可能不报错，正式回答才失败） | 换 `saturn_*` 音色（如 `saturn_zh_female_wenrouwenya_tob`、`saturn_zh_female_keainvsheng_tob`），以控制台「音色管理」已开通的实时音色为准 |
 | 打断不灵 / 助手自说自话 | 用外放喇叭，回声被当成说话 | 戴耳机；或 `[realtime] barge_in = false`（播放时不听） |
 | 识别为空 | 说话太快/太慢、环境吵 | 调 `silence_ms`、`energy_threshold` |
 | 板子 `No route to host` | WiFi 不稳 | 重试 scp/ssh；`iw dev wlan0 set power_save off` |
