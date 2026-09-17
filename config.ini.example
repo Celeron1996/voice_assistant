@@ -1,0 +1,96 @@
+# 复制为 config.ini 后填写。所有项也可用环境变量覆盖（见 README）。
+# 注意：方舟大模型 API Key 与豆包语音的凭证不是同一个，需分别申请。
+
+[llm]
+# 火山方舟 API Key: https://console.volcengine.com/ark -> API Key 管理
+ark_api_key =
+# 推理接入点 ID（ep- 开头）或模型 ID
+model = doubao-seed-1-6-flash-250828
+base_url = https://ark.cn-beijing.volces.com/api/v3
+system_prompt = 你是一个运行在嵌入式开发板上的语音助手。用中文口语化回答，控制在两句话以内，不要使用 Markdown。
+max_tokens = 300
+temperature = 0.7
+# true = LLM 流式输出 + 逐句 TTS + 边合成边播（首声更快）；false = 整段生成后播报
+stream = true
+# disabled = 关闭深度思考（doubao-seed 系列显著降低首字延迟）；auto = 不传该参数
+thinking = disabled
+
+[asr]
+# 豆包语音新版控制台 API Key（X-Api-Key）
+api_key =
+# 或者旧版凭证（二选一）
+appid =
+access_token =
+# stream = 流式识别：边说边出字（需开通「流式语音识别」）；flash = 整段录完再识别
+mode = stream
+stream_url = wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async
+# 流式资源 ID：小时版 volc.seedasr.sauc.duration / 并发版 volc.seedasr.sauc.concurrent（依次自动尝试）
+stream_resource_id = volc.seedasr.sauc.duration
+# flash 模式端点与资源（整段识别）
+url = https://openspeech.bytedance.com/api/v3/auc/bigmodel/recognize/flash
+# 资源 ID 要和开通的服务一致：
+#   录音文件识别 2.0（Seed ASR）-> volc.seedasr.auc（已实测可用，推荐）
+#   录音文件识别-极速版         -> volc.bigasr.auc_turbo
+#   录音文件识别大模型 1.0      -> volc.bigasr.auc
+resource_id = volc.seedasr.auc
+
+[tts]
+# seed   = 新版 v3/tts/unidirectional，用 api_key（豆包语音新版控制台，推荐）
+# legacy = 旧版 api/v1/tts，用 appid + access_token
+mode = seed
+api_key =
+appid =
+access_token =
+cluster = volcano_tts
+# 音色和资源代次要匹配：2.0 音色（*_uranus_bigtts）配 seed-tts-2.0，1.0 音色（mars/moon）配 seed-tts-1.0
+voice_type = zh_female_shuangkuaisisi_uranus_bigtts
+# 有 PulseAudio 时自动改用 pcm（流式喂 paplay）；此值供无 PulseAudio 时的 ALSA 回退使用
+encoding = mp3
+speed_ratio = 1.0
+base_url = https://openspeech.bytedance.com/api/v3/tts/unidirectional
+resource_id = seed-tts-2.0
+# 可选，留空则不发该请求头
+app_key =
+
+[audio]
+# 0 = 自动噪声门限；也可填固定 RMS 阈值（环境吵就调大，如 800）
+energy_threshold = 0
+# 静音多久算一句话结束（毫秒）
+silence_ms = 800
+# 少于此时长不算一句话
+min_speech_ms = 300
+# 单句最长录音（毫秒）
+max_record_ms = 15000
+mic_device = default
+
+[network]
+# 留空则依次查找: SSL_CERT_FILE -> /etc/ssl/certs/ca-certificates.crt -> 本目录/cacert.pem
+ca_file =
+# 仅调试用：找不到 CA 证书时跳过 HTTPS 校验
+insecure_skip_verify = false
+
+[dialogue]
+# realtime = 端到端实时语音（全双工，自然、可打断，推荐）
+# pipeline = ASR + LLM + TTS 串联
+mode = realtime
+
+[realtime]
+# 火山「端到端实时语音大模型-全双工」凭证（豆包语音控制台 → 应用管理：APP ID + Access Token）
+app_id =
+access_token =
+# 或新版控制台 API Key（二选一）
+api_key =
+url = wss://openspeech.bytedance.com/api/v3/realtime/dialogue
+resource_id = volc.speech.dialog
+# SC2.0 音色（saturn_*）配 model 2.2.0.0；O 版音色（*_jupiter_bigtts）配 1.2.6.1
+model = 2.2.0.0
+speaker = saturn_zh_female_wenrouwenya_tob
+bot_name = 小助手
+system_prompt = 你是一个运行在嵌入式开发板上的语音助手，回答简短、口语化。
+speaking_style = 自然、简洁、友好。
+# 开场白（留空则不主动打招呼）
+say_hello =
+# true = 说话/播放时麦克风持续上行（戴耳机推荐，可随时打断）；false = 播放时暂停上行
+barge_in = true
+output_sample_rate = 24000
+end_smooth_window_ms = 1500
