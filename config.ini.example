@@ -82,9 +82,11 @@ access_token =
 api_key =
 url = wss://openspeech.bytedance.com/api/v3/realtime/dialogue
 resource_id = volc.speech.dialog
-# SC2.0 音色（saturn_*）配 model 2.2.0.0；O 版音色（*_jupiter_bigtts）配 1.2.6.1
+# SC2.0 音色（官方 ICL_uranus_*，如 ICL_uranus_zh_female_wenrouwenya_tob）配 model 2.2.0.0
+# O 版音色（*_jupiter_bigtts）配 1.2.6.1；mars/moon/uranus 等合成音色会报 InvalidSpeaker
+# 音色列表：https://docs.volcengine.com/docs/DoubaoVoice/Tonelist-1
 model = 2.2.0.0
-speaker = saturn_zh_female_wenrouwenya_tob
+speaker = ICL_uranus_zh_female_wenrouwenya_tob
 bot_name = 小助手
 system_prompt = 你是一个运行在嵌入式开发板上的语音助手，回答简短、口语化。
 speaking_style = 自然、简洁、友好。

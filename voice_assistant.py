@@ -96,7 +96,7 @@ DEFAULT_CONFIG = {
         "api_key": "",
         "app_key": "PlgvMymc7f3tQnJ6",
         "model": "2.2.0.0",
-        "speaker": "saturn_zh_female_wenrouwenya_tob",
+        "speaker": "ICL_uranus_zh_female_wenrouwenya_tob",
         "bot_name": "小助手",
         "system_prompt": "你是一个运行在嵌入式开发板上的语音助手，回答简短、口语化。",
         "speaking_style": "自然、简洁、友好。",
