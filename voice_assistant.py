@@ -1069,6 +1069,41 @@ class RealtimeDialogue(object):
         self.ws.close()
 
 
+class AudioTap(object):
+    """向 stdout 输出 base64 PCM（`@AUDIO M/T <b64>`），供 Qt UI 侧做 FFT 频谱绘制。
+
+    板子单核跑不动纯 Python FFT（256 点约 39ms），因此这里只做转发，
+    频谱计算交给 C++/Qt（同样算法在 C++ 里是微秒级）。
+    """
+
+    MIC_CHUNK = 3200      # 麦克风每 100ms 输出一次
+    TTS_CHUNK = 8192      # TTS 分片输出，避免单行过大
+
+    def __init__(self, interval=0.1):
+        self.interval = interval
+        self.mic = bytearray()
+        self._last = 0.0
+
+    def feed_mic(self, pcm):
+        self.mic += pcm
+        if len(self.mic) > 64000:
+            del self.mic[:-64000]
+
+    def feed_tts(self, pcm):
+        for offset in range(0, len(pcm), self.TTS_CHUNK):
+            chunk = pcm[offset:offset + self.TTS_CHUNK]
+            print("@AUDIO T " + base64.b64encode(chunk).decode("ascii"), flush=True)
+
+    def maybe_emit(self):
+        now = time.monotonic()
+        if now - self._last < self.interval or not self.mic:
+            return
+        self._last = now
+        chunk = bytes(self.mic)
+        self.mic = bytearray()
+        print("@AUDIO M " + base64.b64encode(chunk).decode("ascii"), flush=True)
+
+
 def _start_realtime_player(conf):
     """实时 TTS 输出为 24kHz PCM：PulseAudio 用 paplay --raw，否则退回 aplay --raw。"""
     pulse = find_pulse_server()
@@ -1101,8 +1136,9 @@ def _stop_process(proc):
         pass
 
 
-def realtime_loop(conf, ssl_ctx):
+def realtime_loop(conf, ssl_ctx, spectrum_enabled=False):
     """全双工实时对话主循环：麦克风音频持续上行，TTS 音频连续下行播放。"""
+    spectrum = AudioTap() if spectrum_enabled else None
     # 注意：必须先建立播放保活流再启动 arecord —— WM8960 在采集流已活跃时打不开播放流
     keepalive = start_sink_keepalive(conf)
     recorder = Recorder(conf)
@@ -1147,6 +1183,8 @@ def realtime_loop(conf, ssl_ctx):
                 pending = bytearray()
                 continue
             frame = recorder.read_frame()
+            if spectrum is not None:
+                spectrum.feed_mic(frame)
             if not playing or barge_in:
                 pending += frame
                 if len(pending) >= 3200:
@@ -1187,6 +1225,8 @@ def realtime_loop(conf, ssl_ctx):
                     turn_text = event["text"]
                 elif kind == "audio":
                     playing = True
+                    if spectrum is not None:
+                        spectrum.feed_tts(event["data"])
                     if player is None:
                         player = _start_realtime_player(conf)
                     if player is not None:
@@ -1226,6 +1266,8 @@ def realtime_loop(conf, ssl_ctx):
                     drop_player()
                     playing = False
                     pending = bytearray()
+            if spectrum is not None:
+                spectrum.maybe_emit()
     finally:
         if dialogue is not None:
             dialogue.close()
@@ -1760,6 +1802,8 @@ def main():
     parser.add_argument("--simulate", metavar="WAV", help="离线跑 VAD 断句（检测逻辑自测，不联网）")
     parser.add_argument("--ask", metavar="TEXT", help="跳过录音和识别，直接走 LLM+TTS 播报（调试用）")
     parser.add_argument("--pipeline", action="store_true", help="强制使用 ASR+LLM+TTS 串联模式（默认实时语音）")
+    parser.add_argument("--spectrum", action="store_true",
+                        help="向 stdout 输出 @AUDIO base64 PCM 行（供 Qt UI 做 FFT 频谱动效）")
     args = parser.parse_args()
     conf = load_config(args.config)
     if args.check:
@@ -1780,7 +1824,7 @@ def main():
     log("语音助手已启动（对话模式: %s）" % mode)
     try:
         if mode == "realtime":
-            realtime_loop(conf, ssl_ctx)
+            realtime_loop(conf, ssl_ctx, spectrum_enabled=args.spectrum)
         else:
             conversation_loop(conf, ssl_ctx, once=args.once)
     except KeyboardInterrupt:

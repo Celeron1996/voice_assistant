@@ -422,6 +422,7 @@ ssh $BOARD 'chmod +x /etc/init.d/S99voiceassistant && /etc/init.d/S99voiceassist
 | `--ask TEXT` | 跳过录音/ASR，直接 LLM→TTS→播放（调试） |
 | `--check` | 检查凭证是否齐全（返回码 0/1） |
 | `--simulate WAV` | 离线跑 VAD 断句自测（不联网、不用麦克风） |
+| `--spectrum` | 向 stdout 输出 `@AUDIO M/T <base64 PCM>` 音频行，供 Qt UI 做 FFT 频谱动效（见 `voice_assistant_qt` 项目） |
 | `--config PATH` | 指定配置文件（默认脚本同目录 config.ini） |
 
 ---
