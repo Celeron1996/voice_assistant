@@ -100,3 +100,5 @@ say_hello =
 barge_in = true
 output_sample_rate = 24000
 end_smooth_window_ms = 1500
+# 空闲多少分钟后静默重建会话（刷新报时注入与上下文；仅空闲时触发，不影响对话）；0 = 不重建
+idle_refresh_minutes = 30

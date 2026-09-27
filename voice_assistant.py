@@ -107,6 +107,7 @@ DEFAULT_CONFIG = {
         "barge_in": "true",
         "output_sample_rate": "24000",
         "end_smooth_window_ms": "1500",
+        "idle_refresh_minutes": "30",
     },
 }
 
@@ -136,6 +137,7 @@ ENV_MAP = {
     ("realtime", "api_key"): "VOLC_RT_API_KEY",
     ("realtime", "speaker"): "VOLC_RT_SPEAKER",
     ("realtime", "model"): "VOLC_RT_MODEL",
+    ("realtime", "idle_refresh_minutes"): "VOLC_RT_IDLE_REFRESH",
 }
 
 
@@ -1107,6 +1109,11 @@ def realtime_loop(conf, ssl_ctx):
     dialogue = None
     player = None
     barge_in = cfg_get(conf, "realtime", "barge_in", "true").lower() in ("1", "true", "yes")
+    try:
+        idle_refresh_s = int(cfg_get(conf, "realtime", "idle_refresh_minutes", "30")) * 60
+    except ValueError:
+        idle_refresh_s = 1800
+    last_activity = time.monotonic()
     playing = False
     pending = bytearray()
     partial = ""
@@ -1126,11 +1133,19 @@ def realtime_loop(conf, ssl_ctx):
             if dialogue is None:
                 try:
                     dialogue = RealtimeDialogue(conf, ssl_ctx)
+                    last_activity = time.monotonic()
                     log("实时会话已建立，直接说话即可（服务端自动断句/打断）")
                 except Exception as err:
                     log("建立实时会话失败: %s（5 秒后重试）" % err)
                     time.sleep(5)
                     continue
+            elif idle_refresh_s and time.monotonic() - last_activity > idle_refresh_s:
+                log("空闲超过 %d 分钟，重建会话（刷新时间注入与上下文）" % (idle_refresh_s // 60))
+                dialogue.close()
+                dialogue = None
+                drop_player()
+                pending = bytearray()
+                continue
             frame = recorder.read_frame()
             if not playing or barge_in:
                 pending += frame
@@ -1143,6 +1158,8 @@ def realtime_loop(conf, ssl_ctx):
                 except queue.Empty:
                     break
                 kind = event["type"]
+                if kind in ("speech_start", "asr", "llm", "tts_text", "audio", "reply_done"):
+                    last_activity = time.monotonic()
                 if kind == "speech_start":
                     playing = False
                     drop_player()

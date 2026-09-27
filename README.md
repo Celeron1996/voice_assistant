@@ -342,6 +342,7 @@ ssh $BOARD 'chmod +x /etc/init.d/S99voiceassistant && /etc/init.d/S99voiceassist
 | `barge_in` | `true` | `true`：播放时麦克风继续上行，可打断（戴耳机推荐）；`false`：播放时暂停上行 |
 | `output_sample_rate` | `24000` | 下行音频采样率（播放器按 24k 配置） |
 | `end_smooth_window_ms` | `1500` | 服务端判定「说完」的静音窗口，越大越不抢话 |
+| `idle_refresh_minutes` | `30` | 空闲多久后静默重建会话（刷新报时注入与上下文；仅空闲触发，不打断对话）；`0` = 不重建 |
 
 #### [asr]（pipeline 模式）
 
