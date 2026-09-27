@@ -73,6 +73,10 @@ insecure_skip_verify = false
 # realtime = 端到端实时语音（全双工，自然、可打断，推荐）
 # pipeline = ASR + LLM + TTS 串联
 mode = realtime
+# 把人设里注入当前时间，让助手报时/报日期准确（会话建立时注入一次）
+inject_time = true
+# 时区偏移（小时）：板子系统时间通常是 UTC，中国填 8；若板子已是本地时间填 0
+time_zone_offset = 8
 
 [realtime]
 # 火山「端到端实时语音大模型-全双工」凭证（豆包语音控制台 → 应用管理：APP ID + Access Token）

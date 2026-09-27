@@ -321,6 +321,8 @@ ssh $BOARD 'chmod +x /etc/init.d/S99voiceassistant && /etc/init.d/S99voiceassist
 | 字段 | 默认 | 说明 |
 | --- | --- | --- |
 | `mode` | `realtime` | `realtime` 用端到端实时语音；`pipeline` 用 ASR+LLM+TTS 串联 |
+| `inject_time` | `true` | 会话建立时把当前时间注入人设/系统提示（模型本身没有实时时钟，不注入会编时间） |
+| `time_zone_offset` | `8` | 时区偏移小时数（板子系统时间为 UTC，中国填 8；板子已是本地时间填 0） |
 
 #### [realtime]（realtime 模式）
 

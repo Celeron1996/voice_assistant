@@ -88,6 +88,8 @@ DEFAULT_CONFIG = {
     },
     "dialogue": {
         "mode": "realtime",
+        "inject_time": "true",
+        "time_zone_offset": "8",
     },
     "realtime": {
         "url": "wss://openspeech.bytedance.com/api/v3/realtime/dialogue",
@@ -128,6 +130,7 @@ ENV_MAP = {
     ("tts", "voice_type"): "VOLC_TTS_VOICE",
     ("network", "ca_file"): "CA_FILE",
     ("dialogue", "mode"): "VOICE_DIALOGUE_MODE",
+    ("dialogue", "time_zone_offset"): "VOICE_TZ_OFFSET",
     ("realtime", "app_id"): "VOLC_RT_APP_ID",
     ("realtime", "access_token"): "VOLC_RT_ACCESS_TOKEN",
     ("realtime", "api_key"): "VOLC_RT_API_KEY",
@@ -149,6 +152,20 @@ def cfg_get(conf, section, option, fallback=None):
 
 def log(msg):
     print("[%s] %s" % (time.strftime("%H:%M:%S"), msg), flush=True)
+
+
+def time_hint(conf):
+    """生成当前时间描述，注入人设/系统提示，让模型能准确报时。"""
+    if cfg_get(conf, "dialogue", "inject_time", "true").lower() not in ("1", "true", "yes"):
+        return ""
+    try:
+        offset_hours = float(cfg_get(conf, "dialogue", "time_zone_offset", "8"))
+    except ValueError:
+        offset_hours = 8.0
+    now = time.gmtime(time.time() + offset_hours * 3600)
+    weekday = "一二三四五六日"[now.tm_wday]
+    return "当前时间是 %d年%d月%d日（星期%s）%02d:%02d，如果有人问日期或时间，以此为准。" % (
+        now.tm_year, now.tm_mon, now.tm_mday, weekday, now.tm_hour, now.tm_min)
 
 
 # ---------------------------------------------------------------- HTTP / TLS
@@ -923,6 +940,9 @@ class RealtimeDialogue(object):
         style = cfg_get(self.conf, "realtime", "speaking_style").strip()
         if style:
             manifest_parts.append("说话风格：%s" % style)
+        hint = time_hint(self.conf)
+        if hint:
+            manifest_parts.append(hint)
         return {
             "asr": {"extra": {
                 "end_smooth_window_ms": int(cfg_get(self.conf, "realtime", "end_smooth_window_ms")),
@@ -1201,10 +1221,14 @@ def llm_reply(conf, ssl_ctx, text):
     api_key = cfg_get(conf, "llm", "ark_api_key")
     if not api_key:
         raise RuntimeError("LLM 未配置凭证（[llm] ark_api_key）")
+    system_prompt = cfg_get(conf, "llm", "system_prompt")
+    hint = time_hint(conf)
+    if hint:
+        system_prompt = system_prompt + "\n" + hint
     payload = {
         "model": cfg_get(conf, "llm", "model"),
         "messages": [
-            {"role": "system", "content": cfg_get(conf, "llm", "system_prompt")},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": text},
         ],
         "max_tokens": int(cfg_get(conf, "llm", "max_tokens")),
@@ -1246,10 +1270,14 @@ def llm_stream(conf, ssl_ctx, text):
     api_key = cfg_get(conf, "llm", "ark_api_key")
     if not api_key:
         raise RuntimeError("LLM 未配置凭证（[llm] ark_api_key）")
+    system_prompt = cfg_get(conf, "llm", "system_prompt")
+    hint = time_hint(conf)
+    if hint:
+        system_prompt = system_prompt + "\n" + hint
     payload = {
         "model": cfg_get(conf, "llm", "model"),
         "messages": [
-            {"role": "system", "content": cfg_get(conf, "llm", "system_prompt")},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": text},
         ],
         "max_tokens": int(cfg_get(conf, "llm", "max_tokens")),
