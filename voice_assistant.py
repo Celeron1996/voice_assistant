@@ -561,7 +561,7 @@ class WSClient(object):
             detail = self._buf.decode("utf-8", "ignore").strip() or \
                 head.decode("utf-8", "ignore").replace("\r\n", " | ")
             raise RuntimeError("WebSocket 握手失败: %s | %s" % (status_line, detail[:300]))
-        self.sock.settimeout(1.0)
+        self.sock.settimeout(5.0)
 
     def _read_exact(self, size):
         while len(self._buf) < size:
@@ -1116,7 +1116,7 @@ def realtime_loop(conf, ssl_ctx):
                 if len(pending) >= 3200:
                     dialogue.send_audio(bytes(pending))
                     pending = bytearray()
-            while True:
+            while dialogue is not None:
                 try:
                     event = dialogue.events.get_nowait()
                 except queue.Empty:
@@ -1170,13 +1170,24 @@ def realtime_loop(conf, ssl_ctx):
                     dialogue = None
                     drop_player()
                     playing = False
+                    pending = bytearray()
                 elif kind == "error":
-                    log("实时对话错误: %s" % event["message"])
+                    message = event["message"]
+                    log("实时对话错误: %s" % message)
+                    if any(marker in message for marker in (
+                            "发送音频失败", "连接", "SSL", "timed out", "Broken pipe",
+                            "Abnormal silence", "closed", "Closed")) and dialogue is not None:
+                        dialogue.close()
+                        dialogue = None
+                        drop_player()
+                        playing = False
+                        pending = bytearray()
                 elif kind == "closed":
                     dialogue.close()
                     dialogue = None
                     drop_player()
                     playing = False
+                    pending = bytearray()
     finally:
         if dialogue is not None:
             dialogue.close()
@@ -1395,7 +1406,7 @@ def start_sink_keepalive(conf):
             )
         except OSError:
             return None
-        time.sleep(1.0)
+        time.sleep(2.0)
         if _sink_running(pulse):
             return proc
         proc.terminate()
