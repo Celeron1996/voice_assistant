@@ -21,8 +21,22 @@ for f in /etc/pulse/system.pa /etc/pulse/default.pa; do
     echo "已处理 $f"
 done
 
+# 把声卡切成纯输出配置：PulseAudio 不再占用采集设备（否则 arecord 无法工作，
+# 且本板声卡在采集已打开时打不开播放流）。
+if command -v pactl >/dev/null 2>&1; then
+    for d in /tmp/pulse-*/; do
+        if PULSE_SERVER=unix:${d}native pactl info >/dev/null 2>&1; then
+            PULSE_SERVER=unix:${d}native pactl set-card-profile 0 output:stereo-fallback 2>/dev/null || true
+            break
+        fi
+    done
+fi
+
 echo "完成。请重启 PulseAudio 生效："
 echo "  /etc/init.d/S50pulseaudio stop"
 echo "  for p in /proc/[0-9]*; do [ \"\$(cat \$p/comm 2>/dev/null)\" = pulseaudio ] && kill \${p#/proc/}; done"
 echo "  /etc/init.d/S50pulseaudio start"
-echo "验证：pactl list sinks | grep State   # 空载应为 IDLE，播放时应为 RUNNING"
+echo "验证："
+echo "  pactl list sources short   # 应只剩 monitor，无 alsa_input"
+echo "  pactl list sinks short     # 应为 alsa_output.*（不能是 auto_null）"
+echo "  pactl list sinks | grep State   # 空载 IDLE，播放时 RUNNING"

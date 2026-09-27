@@ -17,6 +17,7 @@ import io
 import json
 import os
 import queue
+import re
 import select
 import signal
 import socket
@@ -1391,11 +1392,79 @@ def _sink_running(pulse):
         return False
 
 
+def _list_sinks(pulse):
+    try:
+        out = subprocess.run(["pactl", "list", "sinks", "short"],
+                             env=dict(os.environ, PULSE_SERVER=pulse),
+                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=5)
+        return out.stdout.decode("utf-8", "ignore").strip()
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+
+
+def _ensure_alsa_sink(pulse):
+    """PulseAudio 偶尔会以 auto_null 空设备启动（声卡加载失败），此时播放无声，尝试自愈。"""
+    sinks = _list_sinks(pulse)
+    if "alsa_output" in sinks:
+        return True
+    log("警告: PulseAudio 未加载声卡（sink: %s），尝试重启 PulseAudio" % (sinks.replace("\n", " | ") or "无"))
+    for pid_dir in glob.glob("/proc/[0-9]*"):
+        try:
+            with open(os.path.join(pid_dir, "comm")) as fh:
+                if fh.read().strip() == "pulseaudio":
+                    os.kill(int(os.path.basename(pid_dir)), signal.SIGTERM)
+        except (OSError, ValueError):
+            continue
+    time.sleep(2)
+    if os.path.exists("/etc/init.d/S50pulseaudio"):
+        try:
+            subprocess.run(["/etc/init.d/S50pulseaudio", "start"],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+        time.sleep(2)
+    sinks = _list_sinks(pulse)
+    if "alsa_output" in sinks:
+        log("PulseAudio 已恢复，sink: %s" % sinks.replace("\n", " | "))
+        return True
+    log("警告: PulseAudio 仍无 ALSA sink，播放将无声（手动执行 /etc/init.d/S50pulseaudio restart）")
+    return False
+
+
+def _ensure_output_profile(pulse):
+    """把声卡切成纯输出配置：Pulse 不占采集设备，arecord 才能用；播放也不受影响。"""
+    env = dict(os.environ, PULSE_SERVER=pulse)
+    try:
+        out = subprocess.run(["pactl", "list", "cards"], env=env, stdout=subprocess.PIPE,
+                             stderr=subprocess.DEVNULL, timeout=5).stdout.decode("utf-8", "ignore")
+    except (OSError, subprocess.TimeoutExpired):
+        return
+    active = ""
+    output_only = []
+    for line in out.splitlines():
+        line = line.strip()
+        if line.startswith("Active Profile:"):
+            active = line.split(":", 1)[1].strip()
+        match = re.match(r"([\w:+-]+): .*sinks: (\d+), sources: (\d+)", line)
+        if match and int(match.group(2)) >= 1 and int(match.group(3)) == 0:
+            output_only.append(match.group(1))
+    if not output_only or active in output_only:
+        return
+    try:
+        subprocess.run(["pactl", "set-card-profile", "0", output_only[0]], env=env,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+        log("已切换声卡为纯输出配置: %s（释放采集设备给 arecord）" % output_only[0])
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+
 def start_sink_keepalive(conf):
     """用一路静音流保持 PulseAudio sink 常开；启动后校验，失败重试一次。"""
     pulse = find_pulse_server()
     if not pulse:
         return None
+    _ensure_alsa_sink(pulse)
+    _ensure_output_profile(pulse)
     env = dict(os.environ, PULSE_SERVER=pulse)
     for attempt in (0, 1):
         try:

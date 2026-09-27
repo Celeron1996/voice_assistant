@@ -256,9 +256,10 @@ ssh $BOARD 'PULSE_SERVER=unix:$(ls /tmp/pulse-*/native | head -1) paplay --raw -
 ssh $BOARD 'arecord -d 3 -f cd /tmp/rec.wav && aplay /tmp/rec.wav'
 ```
 
-> **强烈建议**：执行 `scripts/fix_pulse_suspend.sh`（禁用 PulseAudio suspend-on-idle）。
-> 本板 PulseAudio 的 sink 进入 SUSPENDED 后经常无法被新播放流唤醒，导致永久无声；
-> 该脚本处理后 sink 空闲保持 IDLE，播放时正常 RUNNING。
+> **强烈建议**：执行 `scripts/fix_pulse_suspend.sh`。它做两件事：
+> ① 禁用 PulseAudio `module-suspend-on-idle`（本板 sink 进入 SUSPENDED 后经常唤不醒，导致永久无声）；
+> ② 把声卡切换为纯输出配置（Pulse 不占采集设备，arecord 才能工作；本板声卡在采集已打开时打不开播放流）。
+> 程序启动时也会自动检查并修复这两项（`auto_null` 空设备会自动重启 PulseAudio）。
 
 ### Step 6 运行 realtime 模式（主线终点）
 
@@ -527,6 +528,7 @@ StartSession 的 JSON（`RealtimeDialogue._session_payload`）：
 | 声音极小/无声 | PulseAudio 重启后 WM8960 硬件音量被重置为 0 | 代码已每次播放前 `alsactl restore`；手动执行同命令 |
 | 启动日志 `PulseAudio sink 未能唤醒` | 先启动了 arecord，播放流打不开 | 已按「先保活流后录音」修复；手动调试同样顺序 |
 | 播放卡住、写入超时、sink 长期 SUSPENDED 唤不醒 | PulseAudio `module-suspend-on-idle` 在本板会卡死 sink 唤醒 | 跑一次 `scripts/fix_pulse_suspend.sh` 禁用该模块并重启 PulseAudio（根治）；临时可重启 pulseaudio |
+| 完全无声但一切"正常"（paplay rc=0、音量 100%） | ① Pulse 以 `auto_null` 空设备启动（声卡加载失败）② Pulse 占着采集设备导致播放打不开 | 程序会自动检测修复；手动：`pactl list sinks short` 确认不是 auto_null，`pactl set-card-profile 0 output:stereo-fallback` 释放采集，再重启 pulseaudio |
 | 实时模式有识别但无回复/无声音，日志报 `ClientError:InvalidSpeaker` | 用了合成 TTS 音色（`mars/moon/非 ICL 的 uranus` 等）而非实时语音音色；且开场白可能不报错，正式回答才失败 | 换实时语音（S2S）音色：`ICL_uranus_*`（官方，如 `ICL_uranus_zh_female_qingxinshaonv_tob`）或旧命名 `saturn_*`；个别 ICL 音色若报 `55000000` 说明该音色未开通 |
 | 打断不灵 / 助手自说自话 | 用外放喇叭，回声被当成说话 | 戴耳机；或 `[realtime] barge_in = false`（播放时不听） |
 | 识别为空 | 说话太快/太慢、环境吵 | 调 `silence_ms`、`energy_threshold` |
